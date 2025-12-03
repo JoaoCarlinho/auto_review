@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Code Review Assistant - Design Directions</title>
+  <style>
+    :root {
+      --bg: #1a1a1a;
+      --bg-elevated: #242424;
+      --bg-hover: #2e2e2e;
+      --border: #333333;
+      --text: #e4e4e4;
+      --text-muted: #888888;
+      --primary: #22d3ee;
+      --primary-hover: #06b6d4;
+      --accent: #67e8f9;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --error: #f87171;
+      --info: #38bdf8;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #0a0a0a;
+      color: #fafafa;
+      min-height: 100vh;
+    }
+
+    .explorer-header {
+      padding: 20px 32px;
+      border-bottom: 1px solid #27272a;
+      background: #09090b;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .explorer-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .explorer-header p {
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+
+    .direction-nav {
+      display: flex;
+      gap: 8px;
+      padding: 16px 32px;
+      background: #09090b;
+      border-bottom: 1px solid #27272a;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 68px;
+      z-index: 99;
+    }
+
+    .direction-btn {
+      padding: 8px 14px;
+      border: 1px solid #27272a;
+      background: transparent;
+      color: #a1a1aa;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .direction-btn:hover {
+      background: #18181b;
+      color: #fafafa;
+    }
+
+    .direction-btn.active {
+      background: var(--primary);
+      color: #0a0a0a;
+      border-color: var(--primary);
+    }
+
+    .view-controls {
+      margin-left: auto;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .view-controls label {
+      font-size: 12px;
+      color: #a1a1aa;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .view-controls input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--primary);
+    }
+
+    .main-content {
+      padding: 32px;
+    }
+
+    .direction-panel {
+      display: none;
+    }
+
+    .direction-panel.active {
+      display: block;
+    }
+
+    .direction-meta {
+      margin-bottom: 24px;
+      padding: 20px 24px;
+      background: #18181b;
+      border-radius: 12px;
+      border: 1px solid #27272a;
+    }
+
+    .direction-meta h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+
+    .direction-meta .personality {
+      font-size: 14px;
+      color: #a1a1aa;
+      margin-bottom: 16px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .meta-item {
+      font-size: 12px;
+    }
+
+    .meta-item .label {
+      color: #71717a;
+      margin-bottom: 4px;
+    }
+
+    .meta-item .value {
+      color: #fafafa;
+      font-weight: 500;
+    }
+
+    /* Mockup Container */
+    .mockup-container {
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .mockup-frame {
+      height: 700px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Shared Mockup Styles */
+    .mock-topbar {
+      height: 48px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+    }
+
+    .mock-logo {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mock-logo-icon {
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0a0a0a;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .mock-tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: 24px;
+    }
+
+    .mock-tab {
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .mock-tab.active {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .mock-tab-close {
+      margin-left: 6px;
+      opacity: 0.5;
+    }
+
+    .mock-spacer {
+      flex: 1;
+    }
+
+    .mock-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    .mock-btn-primary {
+      background: var(--primary);
+      color: #0a0a0a;
+    }
+
+    .mock-btn-secondary {
+      background: var(--bg-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .mock-btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+    }
+
+    .mock-icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .mock-icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .mock-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .mock-sidebar {
+      width: 48px;
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 8px;
+    }
+
+    .mock-sidebar-wide {
+      width: 220px;
+      padding: 12px;
+      align-items: stretch;
+    }
+
+    .mock-sidebar-item {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .mock-sidebar-item:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .mock-sidebar-item.active {
+      background: var(--primary);
+      color: #0a0a0a;
+    }
+
+    .mock-sidebar-section {
+      margin-bottom: 16px;
+    }
+
+    .mock-sidebar-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding: 0 8px;
+    }
+
+    .mock-sidebar-link {
+      padding: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mock-sidebar-link:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .mock-sidebar-link.active {
+      background: rgba(34, 211, 238, 0.1);
+      color: var(--primary);
+    }
+
+    /* Editor Area */
+    .mock-editor-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .mock-editor-toolbar {
+      height: 40px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+    }
+
+    .mock-breadcrumb {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .mock-breadcrumb span {
+      color: var(--text);
+    }
+
+    .mock-editor {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .mock-gutter {
+      width: 48px;
+      background: var(--bg-elevated);
+      padding: 12px 0;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: right;
+      user-select: none;
+      border-right: 1px solid var(--border);
+    }
+
+    .mock-gutter-line {
+      padding: 0 12px 0 8px;
+      height: 20px;
+      line-height: 20px;
+      position: relative;
+    }
+
+    .mock-gutter-line.has-thread::before {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 8px;
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    .mock-code {
+      flex: 1;
+      padding: 12px 16px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      line-height: 20px;
+      overflow: auto;
+    }
+
+    .mock-code-line {
+      height: 20px;
+      white-space: pre;
+    }
+
+    .mock-code-line.highlighted {
+      background: rgba(34, 211, 238, 0.1);
+      margin: 0 -16px;
+      padding: 0 16px;
+      border-left: 3px solid var(--primary);
+      padding-left: 13px;
+    }
+
+    .mock-keyword { color: var(--accent); }
+    .mock-string { color: var(--success); }
+    .mock-comment { color: var(--text-muted); }
+    .mock-function { color: var(--warning); }
+    .mock-number { color: #c792ea; }
+
+    /* Thread Panel */
+    .mock-thread-panel {
+      width: 360px;
+      background: var(--bg-elevated);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mock-thread-panel-wide {
+      width: 420px;
+    }
+
+    .mock-thread-panel-narrow {
+      width: 300px;
+    }
+
+    .mock-thread-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mock-thread-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .mock-thread-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      background: rgba(34, 211, 238, 0.15);
+      color: var(--primary);
+      border-radius: 10px;
+    }
+
+    .mock-thread-list {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .mock-thread-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .mock-thread-card.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .mock-thread-card-header {
+      padding: 10px 12px;
+      background: var(--bg-hover);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mock-thread-lines {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--primary);
+      background: rgba(34, 211, 238, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .mock-thread-status {
+      font-size: 10px;
+      color: var(--success);
+    }
+
+    .mock-thread-code-preview {
+      padding: 10px 12px;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mock-thread-messages {
+      padding: 12px;
+    }
+
+    .mock-thread-message {
+      margin-bottom: 12px;
+    }
+
+    .mock-thread-message:last-child {
+      margin-bottom: 0;
+    }
+
+    .mock-thread-message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .mock-thread-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--bg-hover);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .mock-thread-avatar.ai {
+      background: var(--primary);
+      color: #0a0a0a;
+    }
+
+    .mock-thread-author {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .mock-thread-time {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .mock-thread-content {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      padding-left: 28px;
+    }
+
+    .mock-thread-input-area {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .mock-thread-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      resize: none;
+    }
+
+    .mock-thread-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .mock-thread-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    /* Context Menu */
+    .mock-context-menu {
+      position: absolute;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      min-width: 180px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .mock-context-item {
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mock-context-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .mock-context-item .icon {
+      color: var(--primary);
+      font-size: 14px;
+    }
+
+    .mock-context-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    /* Floating Thread Indicator */
+    .mock-floating-indicator {
+      position: absolute;
+      right: 380px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .mock-floating-indicator::after {
+      content: '';
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 4px solid transparent;
+      border-left-color: var(--border);
+    }
+
+    /* Status Bar */
+    .mock-statusbar {
+      height: 24px;
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      gap: 16px;
+    }
+
+    .mock-statusbar-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .mock-statusbar-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    /* Compare Grid */
+    .compare-grid {
+      display: none;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .compare-grid.active {
+      display: grid;
+    }
+
+    .compare-grid .mockup-container {
+      height: auto;
+    }
+
+    .compare-grid .mockup-frame {
+      height: 500px;
+    }
+
+    .compare-label {
+      padding: 12px 16px;
+      background: #18181b;
+      border-bottom: 1px solid #27272a;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Responsive Controls */
+    .responsive-frame {
+      transition: max-width 0.3s ease;
+      margin: 0 auto;
+    }
+
+    .responsive-frame.tablet {
+      max-width: 768px;
+    }
+
+    .responsive-frame.mobile {
+      max-width: 375px;
+    }
+
+    /* Annotations */
+    .annotation {
+      position: absolute;
+      background: var(--primary);
+      color: #0a0a0a;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="explorer-header">
+    <h1>AI Code Review Assistant - Design Directions</h1>
+    <p>6 layout approaches with Cursor Cyan theme applied. Each mockup is interactive.</p>
+  </div>
+
+  <div class="direction-nav">
+    <button class="direction-btn active" onclick="showDirection(1)">1. Classic Split</button>
+    <button class="direction-btn" onclick="showDirection(2)">2. Dense IDE</button>
+    <button class="direction-btn" onclick="showDirection(3)">3. Minimal Focus</button>
+    <button class="direction-btn" onclick="showDirection(4)">4. Panel Tabs</button>
+    <button class="direction-btn" onclick="showDirection(5)">5. Floating Threads</button>
+    <button class="direction-btn" onclick="showDirection(6)">6. Wide Sidebar</button>
+
+    <div class="view-controls">
+      <label>
+        <input type="checkbox" id="compareAll" onchange="toggleCompare()">
+        Compare All
+      </label>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <!-- Single Direction View -->
+    <div id="single-view">
+
+      <!-- Direction 1: Classic Split -->
+      <div class="direction-panel active" id="direction-1">
+        <div class="direction-meta">
+          <h2>1. Classic Split Panel</h2>
+          <p class="personality">Balanced layout with clear separation between code and threads. Familiar to VS Code and GitHub users.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">Icon Sidebar + Editor + Thread Panel</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">Balanced</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">360px fixed right</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">General use, familiar UX</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar">
+              <div class="mock-logo">
+                <div class="mock-logo-icon">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-tabs">
+                <div class="mock-tab active">utils.ts <span class="mock-tab-close">×</span></div>
+                <div class="mock-tab">api.ts <span class="mock-tab-close">×</span></div>
+              </div>
+              <div class="mock-spacer"></div>
+              <button class="mock-icon-btn">⚙</button>
+            </div>
+
+            <div class="mock-body">
+              <div class="mock-sidebar">
+                <div class="mock-sidebar-item active">📄</div>
+                <div class="mock-sidebar-item">💬</div>
+                <div class="mock-sidebar-item">📜</div>
+                <div class="mock-sidebar-item" style="margin-top: auto;">⚙</div>
+              </div>
+
+              <div class="mock-editor-area">
+                <div class="mock-editor-toolbar">
+                  <span class="mock-breadcrumb">src / <span>utils.ts</span></span>
+                  <div class="mock-spacer"></div>
+                  <span style="font-size: 11px; color: var(--text-muted);">TypeScript</span>
+                </div>
+
+                <div class="mock-editor">
+                  <div class="mock-gutter">
+                    <div class="mock-gutter-line">1</div>
+                    <div class="mock-gutter-line">2</div>
+                    <div class="mock-gutter-line">3</div>
+                    <div class="mock-gutter-line">4</div>
+                    <div class="mock-gutter-line has-thread">5</div>
+                    <div class="mock-gutter-line has-thread">6</div>
+                    <div class="mock-gutter-line has-thread">7</div>
+                    <div class="mock-gutter-line has-thread">8</div>
+                    <div class="mock-gutter-line">9</div>
+                    <div class="mock-gutter-line">10</div>
+                    <div class="mock-gutter-line">11</div>
+                    <div class="mock-gutter-line">12</div>
+                    <div class="mock-gutter-line">13</div>
+                    <div class="mock-gutter-line has-thread">14</div>
+                    <div class="mock-gutter-line has-thread">15</div>
+                    <div class="mock-gutter-line">16</div>
+                    <div class="mock-gutter-line">17</div>
+                    <div class="mock-gutter-line">18</div>
+                  </div>
+
+                  <div class="mock-code">
+                    <div class="mock-code-line"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted">}</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line highlighted">      result.push(user);</div>
+                    <div class="mock-code-line highlighted">    }</div>
+                    <div class="mock-code-line">  }</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line">}</div>
+                  </div>
+                </div>
+
+                <div class="mock-statusbar">
+                  <div class="mock-statusbar-item">
+                    <span class="mock-statusbar-dot"></span>
+                    AI Ready
+                  </div>
+                  <div class="mock-statusbar-item">Ln 5, Col 3</div>
+                  <div class="mock-statusbar-item">UTF-8</div>
+                  <div class="mock-spacer"></div>
+                  <div class="mock-statusbar-item">2 threads</div>
+                </div>
+              </div>
+
+              <div class="mock-thread-panel">
+                <div class="mock-thread-header">
+                  <span class="mock-thread-title">Review Threads</span>
+                  <span class="mock-thread-badge">2 active</span>
+                </div>
+
+                <div class="mock-thread-list">
+                  <div class="mock-thread-card active">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 5-8</span>
+                      <span class="mock-thread-status">● Active</span>
+                    </div>
+                    <div class="mock-thread-code-preview">interface User { name: string; ...</div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar">Y</div>
+                          <span class="mock-thread-author">You</span>
+                          <span class="mock-thread-time">2m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Should I add validation for email format?</div>
+                      </div>
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar ai">AI</div>
+                          <span class="mock-thread-author">AI Assistant</span>
+                          <span class="mock-thread-time">1m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Yes, consider using a branded type or validation schema. I'd recommend Zod for runtime validation...</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mock-thread-card">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 14-15</span>
+                      <span class="mock-thread-status" style="color: var(--warning);">● Pending</span>
+                    </div>
+                    <div class="mock-thread-code-preview">result.push(user);</div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar">Y</div>
+                          <span class="mock-thread-author">You</span>
+                          <span class="mock-thread-time">Just now</span>
+                        </div>
+                        <div class="mock-thread-content">Is there a more functional approach?</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mock-thread-input-area">
+                  <textarea class="mock-thread-input" rows="2" placeholder="Ask about the selected code..."></textarea>
+                  <div class="mock-thread-actions">
+                    <button class="mock-btn mock-btn-ghost">Cancel</button>
+                    <button class="mock-btn mock-btn-primary">Ask AI</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direction 2: Dense IDE -->
+      <div class="direction-panel" id="direction-2">
+        <div class="direction-meta">
+          <h2>2. Dense IDE</h2>
+          <p class="personality">Maximum information density. Compact thread cards, smaller fonts, more visible at once. For power users.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">Narrow Sidebar + Editor + Compact Threads</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">High</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">300px compact</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">Power users, large files</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar" style="height: 40px; padding: 0 12px;">
+              <div class="mock-logo" style="font-size: 13px;">
+                <div class="mock-logo-icon" style="width: 18px; height: 18px; font-size: 10px;">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-tabs">
+                <div class="mock-tab active" style="font-size: 11px; padding: 4px 10px;">utils.ts ×</div>
+                <div class="mock-tab" style="font-size: 11px; padding: 4px 10px;">api.ts ×</div>
+                <div class="mock-tab" style="font-size: 11px; padding: 4px 10px;">types.ts ×</div>
+              </div>
+              <div class="mock-spacer"></div>
+              <button class="mock-icon-btn" style="width: 28px; height: 28px; font-size: 12px;">⚙</button>
+            </div>
+
+            <div class="mock-body">
+              <div class="mock-sidebar" style="width: 40px; padding: 8px 0;">
+                <div class="mock-sidebar-item active" style="width: 30px; height: 30px; font-size: 14px;">📄</div>
+                <div class="mock-sidebar-item" style="width: 30px; height: 30px; font-size: 14px;">💬</div>
+                <div class="mock-sidebar-item" style="width: 30px; height: 30px; font-size: 14px;">📜</div>
+              </div>
+
+              <div class="mock-editor-area">
+                <div class="mock-editor-toolbar" style="height: 32px;">
+                  <span class="mock-breadcrumb" style="font-size: 11px;">src / <span>utils.ts</span></span>
+                </div>
+
+                <div class="mock-editor">
+                  <div class="mock-gutter" style="width: 40px; font-size: 11px;">
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">1</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">2</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">3</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">4</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">5</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">6</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">7</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">8</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">9</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">10</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">11</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">12</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">13</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">14</div>
+                    <div class="mock-gutter-line has-thread" style="height: 18px; line-height: 18px;">15</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">16</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">17</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">18</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">19</div>
+                    <div class="mock-gutter-line" style="height: 18px; line-height: 18px;">20</div>
+                  </div>
+
+                  <div class="mock-code" style="font-size: 11px; line-height: 18px;">
+                    <div class="mock-code-line" style="height: 18px;"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line" style="height: 18px;"></div>
+                    <div class="mock-code-line" style="height: 18px;"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line" style="height: 18px;">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">}</div>
+                    <div class="mock-code-line" style="height: 18px;"></div>
+                    <div class="mock-code-line" style="height: 18px;"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line" style="height: 18px;">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line" style="height: 18px;">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line" style="height: 18px;">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">      result.push(user);</div>
+                    <div class="mock-code-line highlighted" style="height: 18px;">    }</div>
+                    <div class="mock-code-line" style="height: 18px;">  }</div>
+                    <div class="mock-code-line" style="height: 18px;">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line" style="height: 18px;">}</div>
+                    <div class="mock-code-line" style="height: 18px;"></div>
+                    <div class="mock-code-line" style="height: 18px;"><span class="mock-keyword">export function</span> <span class="mock-function">sortByName</span>(users: User[]) {</div>
+                  </div>
+                </div>
+
+                <div class="mock-statusbar" style="height: 22px; font-size: 10px;">
+                  <div class="mock-statusbar-item">
+                    <span class="mock-statusbar-dot" style="width: 5px; height: 5px;"></span>
+                    Ready
+                  </div>
+                  <div class="mock-statusbar-item">Ln 5</div>
+                  <div class="mock-spacer"></div>
+                  <div class="mock-statusbar-item">2 threads</div>
+                </div>
+              </div>
+
+              <div class="mock-thread-panel mock-thread-panel-narrow">
+                <div class="mock-thread-header" style="padding: 10px 12px;">
+                  <span class="mock-thread-title" style="font-size: 12px;">Threads</span>
+                  <span class="mock-thread-badge" style="font-size: 10px;">2</span>
+                </div>
+
+                <div class="mock-thread-list" style="padding: 8px;">
+                  <div class="mock-thread-card active" style="margin-bottom: 8px;">
+                    <div class="mock-thread-card-header" style="padding: 6px 10px;">
+                      <span class="mock-thread-lines" style="font-size: 10px;">L5-8</span>
+                      <span class="mock-thread-status" style="font-size: 9px;">● Active</span>
+                    </div>
+                    <div class="mock-thread-messages" style="padding: 8px 10px;">
+                      <div class="mock-thread-message" style="margin-bottom: 8px;">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar" style="width: 16px; height: 16px; font-size: 9px;">Y</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">You</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 11px; padding-left: 22px;">Add email validation?</div>
+                      </div>
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar ai" style="width: 16px; height: 16px; font-size: 9px;">AI</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">AI</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 11px; padding-left: 22px;">Use Zod schema for validation...</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mock-thread-card" style="margin-bottom: 8px;">
+                    <div class="mock-thread-card-header" style="padding: 6px 10px;">
+                      <span class="mock-thread-lines" style="font-size: 10px;">L14-15</span>
+                      <span class="mock-thread-status" style="font-size: 9px; color: var(--warning);">● Pending</span>
+                    </div>
+                    <div class="mock-thread-messages" style="padding: 8px 10px;">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar" style="width: 16px; height: 16px; font-size: 9px;">Y</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">You</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 11px; padding-left: 22px;">More functional approach?</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mock-thread-input-area" style="padding: 8px;">
+                  <textarea class="mock-thread-input" rows="1" placeholder="Ask AI..." style="font-size: 11px; padding: 8px;"></textarea>
+                  <div class="mock-thread-actions" style="margin-top: 6px;">
+                    <button class="mock-btn mock-btn-primary" style="font-size: 11px; padding: 5px 10px;">Ask</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direction 3: Minimal Focus -->
+      <div class="direction-panel" id="direction-3">
+        <div class="direction-meta">
+          <h2>3. Minimal Focus</h2>
+          <p class="personality">Maximum code space. Thread panel collapses to icons, expands on demand. Clean, distraction-free.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">No sidebar + Full editor + Collapsible threads</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">Low (spacious)</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">Collapsed by default, expands to 400px</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">Focus sessions, single file review</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar" style="background: var(--bg); border-bottom: none; padding: 0 24px;">
+              <div class="mock-logo">
+                <div class="mock-logo-icon">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-spacer"></div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 12px; color: var(--text-muted);">utils.ts</span>
+                <span style="font-size: 11px; color: var(--text-muted); background: var(--bg-hover); padding: 2px 8px; border-radius: 4px;">TypeScript</span>
+              </div>
+              <div class="mock-spacer"></div>
+              <div style="display: flex; gap: 4px;">
+                <button class="mock-btn mock-btn-secondary" style="position: relative;">
+                  💬 <span style="position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; background: var(--primary); border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; color: #0a0a0a;">2</span>
+                </button>
+                <button class="mock-icon-btn">⚙</button>
+              </div>
+            </div>
+
+            <div class="mock-body" style="padding: 0 24px 24px;">
+              <div class="mock-editor-area" style="background: var(--bg-elevated); border-radius: 12px; overflow: hidden; border: 1px solid var(--border);">
+                <div class="mock-editor">
+                  <div class="mock-gutter" style="width: 56px; background: var(--bg-elevated);">
+                    <div class="mock-gutter-line">1</div>
+                    <div class="mock-gutter-line">2</div>
+                    <div class="mock-gutter-line">3</div>
+                    <div class="mock-gutter-line">4</div>
+                    <div class="mock-gutter-line has-thread">5</div>
+                    <div class="mock-gutter-line has-thread">6</div>
+                    <div class="mock-gutter-line has-thread">7</div>
+                    <div class="mock-gutter-line has-thread">8</div>
+                    <div class="mock-gutter-line">9</div>
+                    <div class="mock-gutter-line">10</div>
+                    <div class="mock-gutter-line">11</div>
+                    <div class="mock-gutter-line">12</div>
+                    <div class="mock-gutter-line">13</div>
+                    <div class="mock-gutter-line has-thread">14</div>
+                    <div class="mock-gutter-line has-thread">15</div>
+                    <div class="mock-gutter-line">16</div>
+                    <div class="mock-gutter-line">17</div>
+                    <div class="mock-gutter-line">18</div>
+                  </div>
+
+                  <div class="mock-code" style="padding: 12px 24px;">
+                    <div class="mock-code-line"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted">}</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line highlighted">      result.push(user);</div>
+                    <div class="mock-code-line highlighted">    }</div>
+                    <div class="mock-code-line">  }</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line">}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Floating collapsed thread indicator -->
+            <div style="position: absolute; right: 48px; top: 120px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: var(--bg-elevated); border: 1px solid var(--primary); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span style="color: var(--primary); font-size: 12px;">L5-8</span>
+                <span style="font-size: 11px; color: var(--text-muted);">2 messages</span>
+              </div>
+              <div style="background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span style="color: var(--warning); font-size: 12px;">L14-15</span>
+                <span style="font-size: 11px; color: var(--text-muted);">1 message</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direction 4: Panel Tabs -->
+      <div class="direction-panel" id="direction-4">
+        <div class="direction-meta">
+          <h2>4. Panel Tabs</h2>
+          <p class="personality">Thread panel with tabbed navigation. Switch between threads, history, and AI suggestions in one panel.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">Icon sidebar + Editor + Tabbed panel</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">Balanced</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">400px with tabs (Threads/History/Suggestions)</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">Multi-feature workflows</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar">
+              <div class="mock-logo">
+                <div class="mock-logo-icon">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-tabs">
+                <div class="mock-tab active">utils.ts ×</div>
+                <div class="mock-tab">api.ts ×</div>
+              </div>
+              <div class="mock-spacer"></div>
+              <button class="mock-icon-btn">⚙</button>
+            </div>
+
+            <div class="mock-body">
+              <div class="mock-sidebar">
+                <div class="mock-sidebar-item active">📄</div>
+                <div class="mock-sidebar-item">💬</div>
+                <div class="mock-sidebar-item">📜</div>
+                <div class="mock-sidebar-item" style="margin-top: auto;">⚙</div>
+              </div>
+
+              <div class="mock-editor-area">
+                <div class="mock-editor">
+                  <div class="mock-gutter">
+                    <div class="mock-gutter-line">1</div>
+                    <div class="mock-gutter-line">2</div>
+                    <div class="mock-gutter-line">3</div>
+                    <div class="mock-gutter-line">4</div>
+                    <div class="mock-gutter-line has-thread">5</div>
+                    <div class="mock-gutter-line has-thread">6</div>
+                    <div class="mock-gutter-line has-thread">7</div>
+                    <div class="mock-gutter-line has-thread">8</div>
+                    <div class="mock-gutter-line">9</div>
+                    <div class="mock-gutter-line">10</div>
+                    <div class="mock-gutter-line">11</div>
+                    <div class="mock-gutter-line">12</div>
+                    <div class="mock-gutter-line">13</div>
+                    <div class="mock-gutter-line">14</div>
+                    <div class="mock-gutter-line">15</div>
+                    <div class="mock-gutter-line">16</div>
+                    <div class="mock-gutter-line">17</div>
+                    <div class="mock-gutter-line">18</div>
+                  </div>
+
+                  <div class="mock-code">
+                    <div class="mock-code-line"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted">}</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line">      result.push(user);</div>
+                    <div class="mock-code-line">    }</div>
+                    <div class="mock-code-line">  }</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line">}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mock-thread-panel mock-thread-panel-wide">
+                <!-- Tabbed Header -->
+                <div style="display: flex; border-bottom: 1px solid var(--border);">
+                  <div style="padding: 12px 20px; font-size: 13px; font-weight: 500; color: var(--primary); border-bottom: 2px solid var(--primary); cursor: pointer;">Threads (2)</div>
+                  <div style="padding: 12px 20px; font-size: 13px; color: var(--text-muted); cursor: pointer;">History</div>
+                  <div style="padding: 12px 20px; font-size: 13px; color: var(--text-muted); cursor: pointer;">Suggestions</div>
+                </div>
+
+                <div class="mock-thread-list">
+                  <div class="mock-thread-card active">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 5-8</span>
+                      <span class="mock-thread-status">● Active</span>
+                    </div>
+                    <div class="mock-thread-code-preview">interface User { name: string; ...</div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar">Y</div>
+                          <span class="mock-thread-author">You</span>
+                          <span class="mock-thread-time">2m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Should I add validation for email format?</div>
+                      </div>
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar ai">AI</div>
+                          <span class="mock-thread-author">AI Assistant</span>
+                          <span class="mock-thread-time">1m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Yes, consider using a branded type or validation schema. I'd recommend Zod for runtime validation with TypeScript.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mock-thread-input-area">
+                  <textarea class="mock-thread-input" rows="2" placeholder="Continue the conversation..."></textarea>
+                  <div class="mock-thread-actions">
+                    <button class="mock-btn mock-btn-ghost">Apply Suggestion</button>
+                    <button class="mock-btn mock-btn-primary">Send</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direction 5: Floating Threads -->
+      <div class="direction-panel" id="direction-5">
+        <div class="direction-meta">
+          <h2>5. Floating Threads</h2>
+          <p class="personality">Threads appear as floating cards next to relevant code lines. Like Google Docs comments.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">Full-width editor + Floating thread cards</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">Adaptive</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">Floating cards (280px) anchored to code</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">Inline review feel, contextual proximity</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar">
+              <div class="mock-logo">
+                <div class="mock-logo-icon">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-tabs">
+                <div class="mock-tab active">utils.ts ×</div>
+              </div>
+              <div class="mock-spacer"></div>
+              <button class="mock-btn mock-btn-secondary">All Threads (2)</button>
+              <button class="mock-icon-btn">⚙</button>
+            </div>
+
+            <div class="mock-body" style="position: relative;">
+              <div class="mock-sidebar">
+                <div class="mock-sidebar-item active">📄</div>
+                <div class="mock-sidebar-item">💬</div>
+                <div class="mock-sidebar-item">📜</div>
+              </div>
+
+              <div class="mock-editor-area" style="position: relative;">
+                <div class="mock-editor">
+                  <div class="mock-gutter">
+                    <div class="mock-gutter-line">1</div>
+                    <div class="mock-gutter-line">2</div>
+                    <div class="mock-gutter-line">3</div>
+                    <div class="mock-gutter-line">4</div>
+                    <div class="mock-gutter-line has-thread">5</div>
+                    <div class="mock-gutter-line has-thread">6</div>
+                    <div class="mock-gutter-line has-thread">7</div>
+                    <div class="mock-gutter-line has-thread">8</div>
+                    <div class="mock-gutter-line">9</div>
+                    <div class="mock-gutter-line">10</div>
+                    <div class="mock-gutter-line">11</div>
+                    <div class="mock-gutter-line">12</div>
+                    <div class="mock-gutter-line">13</div>
+                    <div class="mock-gutter-line has-thread">14</div>
+                    <div class="mock-gutter-line has-thread">15</div>
+                    <div class="mock-gutter-line">16</div>
+                    <div class="mock-gutter-line">17</div>
+                    <div class="mock-gutter-line">18</div>
+                  </div>
+
+                  <div class="mock-code" style="padding-right: 320px;">
+                    <div class="mock-code-line"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted">}</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line highlighted">      result.push(user);</div>
+                    <div class="mock-code-line highlighted">    }</div>
+                    <div class="mock-code-line">  }</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line">}</div>
+                  </div>
+                </div>
+
+                <!-- Floating Thread Cards -->
+                <div style="position: absolute; right: 24px; top: 80px; width: 280px;">
+                  <div class="mock-thread-card active" style="margin-bottom: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.3);">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 5-8</span>
+                      <span style="font-size: 10px; color: var(--text-muted);">×</span>
+                    </div>
+                    <div class="mock-thread-messages" style="max-height: 150px; overflow: auto;">
+                      <div class="mock-thread-message" style="margin-bottom: 8px;">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar" style="width: 18px; height: 18px; font-size: 9px;">Y</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">You</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 12px; padding-left: 24px;">Add email validation?</div>
+                      </div>
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar ai" style="width: 18px; height: 18px; font-size: 9px;">AI</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">AI</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 12px; padding-left: 24px;">Use Zod for validation...</div>
+                      </div>
+                    </div>
+                    <div style="padding: 8px; border-top: 1px solid var(--border);">
+                      <input style="width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font-size: 11px; color: var(--text);" placeholder="Reply...">
+                    </div>
+                  </div>
+                </div>
+
+                <div style="position: absolute; right: 24px; top: 320px; width: 280px;">
+                  <div class="mock-thread-card" style="box-shadow: 0 4px 24px rgba(0,0,0,0.3);">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 14-15</span>
+                      <span style="font-size: 10px; color: var(--warning);">● Pending</span>
+                    </div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar" style="width: 18px; height: 18px; font-size: 9px;">Y</div>
+                          <span class="mock-thread-author" style="font-size: 11px;">You</span>
+                        </div>
+                        <div class="mock-thread-content" style="font-size: 12px; padding-left: 24px;">More functional approach?</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direction 6: Wide Sidebar -->
+      <div class="direction-panel" id="direction-6">
+        <div class="direction-meta">
+          <h2>6. Wide Sidebar Navigation</h2>
+          <p class="personality">Expanded sidebar with file tree, history, and settings. Thread panel on right. Full IDE feel.</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="label">Layout</div>
+              <div class="value">Wide sidebar (220px) + Editor + Thread panel</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Density</div>
+              <div class="value">Medium</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Thread Panel</div>
+              <div class="value">360px with full context</div>
+            </div>
+            <div class="meta-item">
+              <div class="label">Best For</div>
+              <div class="value">File management, session history</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mockup-container">
+          <div class="mockup-frame">
+            <div class="mock-topbar">
+              <div class="mock-logo">
+                <div class="mock-logo-icon">AI</div>
+                CodeReview
+              </div>
+              <div class="mock-spacer"></div>
+              <button class="mock-btn mock-btn-secondary">New File</button>
+              <button class="mock-icon-btn">⚙</button>
+            </div>
+
+            <div class="mock-body">
+              <div class="mock-sidebar mock-sidebar-wide">
+                <div class="mock-sidebar-section">
+                  <div class="mock-sidebar-title">Files</div>
+                  <div class="mock-sidebar-link active">
+                    <span>📄</span> utils.ts
+                  </div>
+                  <div class="mock-sidebar-link">
+                    <span>📄</span> api.ts
+                  </div>
+                  <div class="mock-sidebar-link">
+                    <span>📄</span> types.ts
+                  </div>
+                </div>
+
+                <div class="mock-sidebar-section">
+                  <div class="mock-sidebar-title">Recent Sessions</div>
+                  <div class="mock-sidebar-link">
+                    <span>📜</span> auth.ts review
+                  </div>
+                  <div class="mock-sidebar-link">
+                    <span>📜</span> hooks refactor
+                  </div>
+                </div>
+
+                <div class="mock-sidebar-section" style="margin-top: auto;">
+                  <div class="mock-sidebar-link">
+                    <span>⚙</span> Settings
+                  </div>
+                  <div class="mock-sidebar-link">
+                    <span>❓</span> Help
+                  </div>
+                </div>
+              </div>
+
+              <div class="mock-editor-area">
+                <div class="mock-editor-toolbar">
+                  <span class="mock-breadcrumb">src / <span>utils.ts</span></span>
+                  <div class="mock-spacer"></div>
+                  <span style="font-size: 11px; color: var(--text-muted);">TypeScript</span>
+                </div>
+
+                <div class="mock-editor">
+                  <div class="mock-gutter">
+                    <div class="mock-gutter-line">1</div>
+                    <div class="mock-gutter-line">2</div>
+                    <div class="mock-gutter-line">3</div>
+                    <div class="mock-gutter-line">4</div>
+                    <div class="mock-gutter-line has-thread">5</div>
+                    <div class="mock-gutter-line has-thread">6</div>
+                    <div class="mock-gutter-line has-thread">7</div>
+                    <div class="mock-gutter-line has-thread">8</div>
+                    <div class="mock-gutter-line">9</div>
+                    <div class="mock-gutter-line">10</div>
+                    <div class="mock-gutter-line">11</div>
+                    <div class="mock-gutter-line">12</div>
+                    <div class="mock-gutter-line">13</div>
+                    <div class="mock-gutter-line has-thread">14</div>
+                    <div class="mock-gutter-line has-thread">15</div>
+                    <div class="mock-gutter-line">16</div>
+                    <div class="mock-gutter-line">17</div>
+                    <div class="mock-gutter-line">18</div>
+                  </div>
+
+                  <div class="mock-code">
+                    <div class="mock-code-line"><span class="mock-keyword">import</span> { useState } <span class="mock-keyword">from</span> <span class="mock-string">'react'</span>;</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">interface</span> User {</div>
+                    <div class="mock-code-line">  id: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  name: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  email: <span class="mock-keyword">string</span>;</div>
+                    <div class="mock-code-line highlighted">  active: <span class="mock-keyword">boolean</span>;</div>
+                    <div class="mock-code-line highlighted">}</div>
+                    <div class="mock-code-line"></div>
+                    <div class="mock-code-line"><span class="mock-keyword">export function</span> <span class="mock-function">filterActiveUsers</span>(users: User[]) {</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">const</span> result = [];</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">for</span> (<span class="mock-keyword">const</span> user <span class="mock-keyword">of</span> users) {</div>
+                    <div class="mock-code-line">    <span class="mock-keyword">if</span> (user.active) {</div>
+                    <div class="mock-code-line highlighted">      result.push(user);</div>
+                    <div class="mock-code-line highlighted">    }</div>
+                    <div class="mock-code-line">  }</div>
+                    <div class="mock-code-line">  <span class="mock-keyword">return</span> result;</div>
+                    <div class="mock-code-line">}</div>
+                  </div>
+                </div>
+
+                <div class="mock-statusbar">
+                  <div class="mock-statusbar-item">
+                    <span class="mock-statusbar-dot"></span>
+                    AI Ready
+                  </div>
+                  <div class="mock-statusbar-item">Ln 5, Col 3</div>
+                  <div class="mock-spacer"></div>
+                  <div class="mock-statusbar-item">2 threads</div>
+                </div>
+              </div>
+
+              <div class="mock-thread-panel">
+                <div class="mock-thread-header">
+                  <span class="mock-thread-title">Review Threads</span>
+                  <span class="mock-thread-badge">2 active</span>
+                </div>
+
+                <div class="mock-thread-list">
+                  <div class="mock-thread-card active">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 5-8</span>
+                      <span class="mock-thread-status">● Active</span>
+                    </div>
+                    <div class="mock-thread-code-preview">interface User { name: string; ...</div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar">Y</div>
+                          <span class="mock-thread-author">You</span>
+                          <span class="mock-thread-time">2m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Should I add validation for email format?</div>
+                      </div>
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar ai">AI</div>
+                          <span class="mock-thread-author">AI Assistant</span>
+                          <span class="mock-thread-time">1m ago</span>
+                        </div>
+                        <div class="mock-thread-content">Yes, consider using a branded type or validation schema. Zod is excellent for this.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mock-thread-card">
+                    <div class="mock-thread-card-header">
+                      <span class="mock-thread-lines">Lines 14-15</span>
+                      <span class="mock-thread-status" style="color: var(--warning);">● Pending</span>
+                    </div>
+                    <div class="mock-thread-code-preview">result.push(user);</div>
+                    <div class="mock-thread-messages">
+                      <div class="mock-thread-message">
+                        <div class="mock-thread-message-header">
+                          <div class="mock-thread-avatar">Y</div>
+                          <span class="mock-thread-author">You</span>
+                          <span class="mock-thread-time">Just now</span>
+                        </div>
+                        <div class="mock-thread-content">Is there a more functional approach?</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mock-thread-input-area">
+                  <textarea class="mock-thread-input" rows="2" placeholder="Ask about the selected code..."></textarea>
+                  <div class="mock-thread-actions">
+                    <button class="mock-btn mock-btn-ghost">Cancel</button>
+                    <button class="mock-btn mock-btn-primary">Ask AI</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare Grid -->
+    <div id="compare-view" class="compare-grid"></div>
+  </div>
+
+  <script>
+    let currentDirection = 1;
+
+    function showDirection(n) {
+      if (document.getElementById('compareAll').checked) return;
+
+      currentDirection = n;
+      document.querySelectorAll('.direction-panel').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.direction-btn').forEach(el => el.classList.remove('active'));
+
+      document.getElementById('direction-' + n).classList.add('active');
+      document.querySelectorAll('.direction-btn')[n - 1].classList.add('active');
+    }
+
+    function toggleCompare() {
+      const isComparing = document.getElementById('compareAll').checked;
+      const singleView = document.getElementById('single-view');
+      const compareView = document.getElementById('compare-view');
+
+      if (isComparing) {
+        singleView.style.display = 'none';
+        compareView.classList.add('active');
+
+        compareView.innerHTML = '';
+        for (let i = 1; i <= 6; i++) {
+          const panel = document.getElementById('direction-' + i);
+          const clone = panel.querySelector('.mockup-container').cloneNode(true);
+          const wrapper = document.createElement('div');
+          const label = document.createElement('div');
+          label.className = 'compare-label';
+          label.textContent = panel.querySelector('h2').textContent;
+          wrapper.appendChild(label);
+          wrapper.appendChild(clone);
+          compareView.appendChild(wrapper);
+        }
+      } else {
+        singleView.style.display = 'block';
+        compareView.classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>
